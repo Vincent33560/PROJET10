@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Default: <keypairname>
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium]
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  VPC:
+    Description: Select VPC.
+    Type: AWS::EC2::VPC::Id
+    Default: <vpc-id>
+  Subnet:
+    Description: Private Subnet to Deploy Docker MFA.
+    Type: AWS::EC2::Subnet::Id
+    Default: <subnet-id>
+
+  AccessSecurityGroup:
+    Description: Security Group That Allows Instance to Instance Access.
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: <securitygroup-id>
+
+Mappings:
+  RegionMap:
+    eu-west-3:
+      AMI: ami-01bc42c8989e314b3
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      UserData: !Base64
+        Fn::Join:
+        - ''
+        - [IPAddress=, !Ref 'IPAddress']
+      InstanceType: !Ref 'InstanceType'
+      KeyName: !Ref 'KeyName'
+      Tags:
+      - Key: Name
+        Value: VPN
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - AMI
+      NetworkInterfaces:
+      - GroupSet:
+        - Ref: AccessSecurityGroup
+        AssociatePublicIpAddress: 'true'
+        DeviceIndex: '0'
+        DeleteOnTermination: 'true'
+        SubnetId:
+          Ref: Subnet
+  IPAddress:
+    Type: AWS::EC2::EIP
+  IPAssoc:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref 'EC2Instance'
+      EIP: !Ref 'IPAddress'

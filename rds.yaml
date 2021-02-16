@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  DBIdentifier:
+    Default: wordpress
+    Type: String
+  DBName:
+    Default: wordpress
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric
+      characters.
+  DBUser:
+    NoEcho: 'true'
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric
+      characters.
+  DBPassword:
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+
+  VPC:
+    Description: Select VPC.
+    Type: AWS::EC2::VPC::Id
+    Default: <vpc-id>
+
+  TcpPort:
+    Description: Enter RDS Listening TCP Port number.
+    Type: Number
+    Default: 3306
+
+  SubnetIdList:
+    Description: Subnet ID List for Subnet Group Creation Allow Routing.
+    Type: CommaDelimitedList
+
+  MultiAvailabilityZone:
+    Description: Enable Multi Availability Zones?
+    Type: String
+    Default: 'false'
+    AllowedValues:
+    - 'true'
+    - 'false'
+
+
+Resources:
+
+  RDSAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Instance to RDS Access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: !Ref TcpPort
+          ToPort: !Ref TcpPort
+      Tags:
+      - Key: Name
+        Value: !Ref "AWS::StackName"
+
+  AccessSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: RDSAccessSecurityGroup
+    Properties:
+      GroupId: !Ref RDSAccessSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref TcpPort
+      ToPort: !Ref TcpPort
+      SourceSecurityGroupId: !Ref RDSAccessSecurityGroup
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Join [ "", [ "RDS Subnet Group for ", !Ref "AWS::StackName" ] ]
+      SubnetIds: !Ref SubnetIdList
+      Tags:
+      - Key: Name
+        Value: !Ref "AWS::StackName"
+
+  MyDB:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+    - DbSubnetGroup
+    - RDSAccessSecurityGroup
+    Properties:
+      DBInstanceIdentifier: !Ref DBIdentifier
+      DBName: !Ref 'DBName'
+      AllocatedStorage: '5'
+      DBInstanceClass: db.t2.micro
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      Port: !Ref TcpPort
+      Engine: MySQL
+      MasterUsername: !Ref 'DBUser'
+      MasterUserPassword: !Ref 'DBPassword'
+      MultiAZ: !Ref MultiAvailabilityZone
+      VPCSecurityGroups:
+      - !Ref RDSAccessSecurityGroup

@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  VPC:
+    Description: Select VPC.
+    Type: AWS::EC2::VPC::Id
+    Default: <vpc-id>
+
+  SubnetId:
+   Type: AWS::EC2::Subnet::Id
+   Description: Select a subnet to launch EC2 Instance
+
+  AdLocation:
+    Description: IP ALLOWED TO CONNECT
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 10.0.2.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  PrimaryIPAddress:
+    Type: String
+    Description: Private IP
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    ConstraintDescription: must be a valid IP address of the form x.x.x.x.
+
+Resources:
+  IntranetHTTPSSHSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable HTTP / SSH access via port 80 / 22
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref 'AdLocation'
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref 'AdLocation'
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0aa4c119cf70ea3fe
+      NetworkInterfaces:
+      - NetworkInterfaceId: !Ref 'Eth0'
+        DeviceIndex: '0'
+      Tags:
+        - Key: Name
+          Value: INTRANET
+  Eth0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: eth0
+      GroupSet: [!Ref 'IntranetHTTPSSHSG']
+      PrivateIpAddresses:
+      - PrivateIpAddress: !Ref 'PrimaryIPAddress'
+        Primary: 'true'
+      SourceDestCheck: 'true'
+      SubnetId: !Ref 'SubnetId'
+      Tags:
+      - Key: Name
+        Value: Interface 0
+      - Key: Interface
+        Value: eth0
